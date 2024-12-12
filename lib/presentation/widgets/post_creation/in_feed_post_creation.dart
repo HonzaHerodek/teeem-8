@@ -8,6 +8,12 @@ import '../../../data/models/step_type_model.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import './post_step_widget.dart';
 
+// TODO: the confirmation action button in feed must be able to work with in_feed_post_creation and create a post like is the case with create_post_screen. Potential issues may be with handling context (steps, step types, step content) and with communication between the in_feed_post_creation and the feed_screen (i.e. the confirmation action button - in the area of a plus button (add post) after the plus button is clicked)
+
+abstract class InFeedPostCreationController {
+  Future<void> save();
+}
+
 class InFeedPostCreation extends StatefulWidget {
   final VoidCallback onCancel;
   final Function(bool success) onComplete;
@@ -18,15 +24,25 @@ class InFeedPostCreation extends StatefulWidget {
     required this.onComplete,
   });
 
+  static InFeedPostCreationController? of(BuildContext context) {
+    final state = context.findRootAncestorStateOfType<InFeedPostCreationState>();
+    if (state != null) {
+      return state;
+    }
+    return null;
+  }
+
   @override
-  InFeedPostCreationState createState() => InFeedPostCreationState();
+  State<InFeedPostCreation> createState() => InFeedPostCreationState();
 }
 
-class InFeedPostCreationState extends State<InFeedPostCreation> {
+class InFeedPostCreationState extends State<InFeedPostCreation>
+    implements InFeedPostCreationController {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final List<Widget> _steps = [];
+  final List<GlobalKey<PostStepWidgetState>> _stepKeys = [];
+  final List<PostStepWidget> _steps = [];
   final _postRepository = getIt<PostRepository>();
   final _stepTypeRepository = getIt<StepTypeRepository>();
   bool _isLoading = false;
@@ -66,47 +82,90 @@ class InFeedPostCreationState extends State<InFeedPostCreation> {
   }
 
   void _addStep() {
+    final stepKey = GlobalKey<PostStepWidgetState>();
+    final newStep = PostStepWidget(
+      key: stepKey,
+      onRemove: () => _removeStep(_steps.length - 1),
+      stepNumber: _steps.length + 1,
+      enabled: !_isLoading,
+      stepTypes: _availableStepTypes,
+    );
+
     setState(() {
-      _steps.add(PostStepWidget(
-        key: UniqueKey(),
-        onRemove: () => _removeStep(_steps.length - 1),
-        stepNumber: _steps.length + 1,
-        enabled: !_isLoading,
-        stepTypes: _availableStepTypes,
-      ));
+      _stepKeys.add(stepKey);
+      _steps.add(newStep);
     });
-    
+
     // Scroll to the bottom after adding a step
     Future.delayed(const Duration(milliseconds: 100), () {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
     });
   }
 
   void _removeStep(int index) {
     setState(() {
       _steps.removeAt(index);
+      _stepKeys.removeAt(index);
       // Update step numbers
       for (var i = 0; i < _steps.length; i++) {
-        final currentStep = _steps[i];
-        if (currentStep is PostStepWidget) {
-          _steps[i] = PostStepWidget(
-            key: UniqueKey(),
-            onRemove: () => _removeStep(i),
-            stepNumber: i + 1,
-            enabled: !_isLoading,
-            stepTypes: _availableStepTypes,
-          );
-        }
+        final stepKey = GlobalKey<PostStepWidgetState>();
+        _stepKeys[i] = stepKey;
+        _steps[i] = PostStepWidget(
+          key: stepKey,
+          onRemove: () => _removeStep(i),
+          stepNumber: i + 1,
+          enabled: !_isLoading,
+          stepTypes: _availableStepTypes,
+        );
       }
     });
   }
 
+  bool _validateSteps() {
+    bool isValid = true;
+    for (var i = 0; i < _stepKeys.length; i++) {
+      final state = _stepKeys[i].currentState;
+      if (state == null || !state.validate()) {
+        isValid = false;
+        print('Step ${i + 1} validation failed'); // Debug print
+      }
+    }
+    return isValid;
+  }
+
+  @override
   Future<void> save() async {
+    print('Attempting to save post...'); // Debug print
+
+    if (_steps.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please add at least one step'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) {
+      print('Form validation failed'); // Debug print
+      return;
+    }
+
+    if (!_validateSteps()) {
+      print('Step validation failed'); // Debug print
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill in all step fields'),
+          backgroundColor: Colors.red,
+        ),
+      );
       return;
     }
 
@@ -121,17 +180,17 @@ class InFeedPostCreationState extends State<InFeedPostCreation> {
       }
 
       final steps = _steps
-          .whereType<PostStepWidget>()
-          .map((stepWidget) => stepWidget.toPostStep())
+          .map((stepWidget) {
+            final step = stepWidget.toPostStep();
+            print('Step data: $step'); // Debug print
+            return step;
+          })
           .where((step) => step != null)
           .cast<PostStep>()
           .toList();
 
-      if (steps.isEmpty) {
-        throw Exception('Please add at least one step');
-      }
+      print('Creating post with ${steps.length} steps'); // Debug print
 
-      // TODO: Debug posts with only one step - they show multiple false carousel dots/miniatures
       final post = PostModel(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         userId: authState.userId!,
@@ -155,6 +214,7 @@ class InFeedPostCreationState extends State<InFeedPostCreation> {
       );
 
       await _postRepository.createPost(post);
+      print('Post created successfully'); // Debug print
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -163,6 +223,7 @@ class InFeedPostCreationState extends State<InFeedPostCreation> {
         widget.onComplete(true);
       }
     } catch (e) {
+      print('Error creating post: $e'); // Debug print
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -179,6 +240,39 @@ class InFeedPostCreationState extends State<InFeedPostCreation> {
         });
       }
     }
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+    String? label,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white24,
+          ),
+          child: IconButton(
+            icon: Icon(icon, color: Colors.white),
+            onPressed: _isLoading ? null : onPressed,
+            padding: const EdgeInsets.all(12),
+          ),
+        ),
+        if (label != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ],
+    );
   }
 
   @override
@@ -223,100 +317,132 @@ class InFeedPostCreationState extends State<InFeedPostCreation> {
         clipBehavior: Clip.antiAlias,
         child: Container(
           color: Colors.white.withOpacity(0.1),
-          child: Form(
-            key: _formKey,
-            child: Center(
-              child: SizedBox(
-                width: size * 0.8,
-                height: size * 0.8,
-                child: ListView(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  children: [
-                    const SizedBox(height: 16),
-                    Text(
-                      'Create New Post',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: Colors.white,
+          child: Stack(
+            children: [
+              Form(
+                key: _formKey,
+                child: Center(
+                  child: SizedBox(
+                    width: size * 0.8,
+                    height: size * 0.8,
+                    child: ListView(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      children: [
+                        const SizedBox(height: 40),
+                        TextFormField(
+                          controller: _titleController,
+                          enabled: !_isLoading,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: const InputDecoration(
+                            labelText: 'Title',
+                            labelStyle: TextStyle(color: Colors.white70),
+                            border: OutlineInputBorder(),
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white30),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white),
+                            ),
+                            hintText: 'Title of Task',
+                            hintStyle: TextStyle(color: Colors.white30),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
                           ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter a title';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _descriptionController,
+                          enabled: !_isLoading,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: const InputDecoration(
+                            labelText: 'Description',
+                            labelStyle: TextStyle(color: Colors.white70),
+                            border: OutlineInputBorder(),
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white30),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white),
+                            ),
+                            hintText: 'short summary of the goal',
+                            hintStyle: TextStyle(color: Colors.white30),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                          ),
+                          maxLines: 2,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter a description';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        ..._steps,
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _buildActionButton(
+                              icon: Icons.settings,
+                              onPressed: () {
+                                // TODO: Implement settings action
+                              },
+                            ),
+                            _buildActionButton(
+                              icon: Icons.auto_awesome,
+                              onPressed: () {
+                                // TODO: Implement AI action
+                              },
+                            ),
+                            _buildActionButton(
+                              icon: Icons.playlist_add,
+                              onPressed: _addStep,
+                              label: 'Add Step',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _titleController,
-                      enabled: !_isLoading,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
-                        labelText: 'Title',
-                        labelStyle: TextStyle(color: Colors.white70),
-                        border: OutlineInputBorder(),
-                        enabledBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: Colors.white30),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: Colors.white),
-                        ),
-                        hintText: 'e.g., How to Make Perfect Pancakes',
-                        hintStyle: TextStyle(color: Colors.white30),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter a title';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _descriptionController,
-                      enabled: !_isLoading,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
-                        labelStyle: TextStyle(color: Colors.white70),
-                        border: OutlineInputBorder(),
-                        enabledBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: Colors.white30),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: Colors.white),
-                        ),
-                        hintText: 'A brief description of what this post is about',
-                        hintStyle: TextStyle(color: Colors.white30),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                      ),
-                      maxLines: 2,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter a description';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    ..._steps,
-                    if (_availableStepTypes.isNotEmpty)
-                      ElevatedButton.icon(
-                        onPressed: _isLoading ? null : _addStep,
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text('Add Step'),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          backgroundColor: Colors.white24,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                    const SizedBox(height: 16),
-                  ],
+                  ),
                 ),
               ),
-            ),
+              // Cancel button positioned at the top
+              Align(
+                alignment: Alignment.topCenter,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black.withOpacity(0.225),
+                      border: Border.all(color: Colors.white24, width: 1),
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                      onPressed: widget.onCancel,
+                      padding: const EdgeInsets.all(8),
+                      constraints: const BoxConstraints(
+                        minWidth: 40,
+                        minHeight: 40,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

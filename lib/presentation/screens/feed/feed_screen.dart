@@ -4,7 +4,10 @@ import '../../../core/di/injection.dart';
 import '../../../domain/repositories/auth_repository.dart';
 import '../../../domain/repositories/post_repository.dart';
 import '../../../domain/repositories/user_repository.dart';
+import '../../../domain/repositories/step_type_repository.dart';
 import '../../../core/services/rating_service.dart';
+import '../../../data/models/post_model.dart';
+import '../../../data/models/step_type_model.dart';
 import '../../widgets/error_view.dart';
 import '../../widgets/post_card.dart';
 import '../../widgets/sliding_panel.dart';
@@ -14,6 +17,8 @@ import '../../widgets/filtering/menu/filter_menu.dart';
 import '../../widgets/filtering/services/filter_service.dart';
 import '../../widgets/filtering/models/filter_type.dart';
 import '../../widgets/post_creation/in_feed_post_creation.dart';
+import '../../widgets/post_creation/post_step_widget.dart';
+import '../../bloc/auth/auth_bloc.dart';
 import '../profile/profile_screen.dart';
 import 'feed_bloc/feed_bloc.dart';
 import 'feed_bloc/feed_event.dart';
@@ -48,7 +53,10 @@ class _FeedViewState extends State<FeedView> {
   bool _isProfileOpen = false;
   bool _isCreatingPost = false;
   final ScrollController _scrollController = ScrollController();
-  final GlobalKey<InFeedPostCreationState> _postCreationKey = GlobalKey();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -59,6 +67,8 @@ class _FeedViewState extends State<FeedView> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _titleController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -95,10 +105,13 @@ class _FeedViewState extends State<FeedView> {
 
   Future<void> _handleActionButton() async {
     if (_isCreatingPost) {
-      // Get the state directly using the key
-      final state = _postCreationKey.currentState;
-      if (state != null) {
-        await state.save();
+      print('Attempting to save post...'); // Debug print
+      final controller = InFeedPostCreation.of(context);
+      if (controller != null) {
+        print('Found controller, saving...'); // Debug print
+        await controller.save();
+      } else {
+        print('Controller not found'); // Debug print
       }
     } else {
       _toggleCreatePost();
@@ -218,10 +231,12 @@ class _FeedViewState extends State<FeedView> {
                             (state.isLoadingMore ? 1 : 0),
                         itemBuilder: (context, index) {
                           if (_isCreatingPost && index == 0) {
-                            return InFeedPostCreation(
-                              key: _postCreationKey,
-                              onCancel: _toggleCreatePost,
-                              onComplete: _handlePostCreationComplete,
+                            return Form(
+                              key: _formKey,
+                              child: InFeedPostCreation(
+                                onCancel: _toggleCreatePost,
+                                onComplete: _handlePostCreationComplete,
+                              ),
                             );
                           }
 
@@ -292,7 +307,7 @@ class _FeedViewState extends State<FeedView> {
                   ),
                   CircularActionButton(
                     icon: _isCreatingPost ? Icons.check : Icons.add,
-                    onPressed: _handleActionButton,
+                    onPressed: _isLoading ? null : () => _handleActionButton(),
                     isBold: true,
                   ),
                 ],
