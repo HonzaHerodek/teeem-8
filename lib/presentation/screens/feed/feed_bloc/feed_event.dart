@@ -1,11 +1,9 @@
-import 'package:equatable/equatable.dart';
 import '../../../../data/models/targeting_model.dart';
-import '../../../../core/services/feed_filter_service.dart';
+import '../../../widgets/filtering/models/filter_type.dart';
 
-abstract class FeedEvent extends Equatable {
+abstract class FeedEvent {
   const FeedEvent();
 
-  @override
   List<Object?> get props => [];
 }
 
@@ -19,24 +17,6 @@ class FeedRefreshed extends FeedEvent {
 
 class FeedLoadMore extends FeedEvent {
   const FeedLoadMore();
-}
-
-class FeedFilterChanged extends FeedEvent {
-  final FilterType filterType;
-
-  const FeedFilterChanged(this.filterType);
-
-  @override
-  List<Object?> get props => [filterType];
-}
-
-class FeedTargetingFilterChanged extends FeedEvent {
-  final TargetingCriteria? targetingCriteria;
-
-  const FeedTargetingFilterChanged(this.targetingCriteria);
-
-  @override
-  List<Object?> get props => [targetingCriteria];
 }
 
 class FeedPostLiked extends FeedEvent {
@@ -111,4 +91,22 @@ class FeedPostRated extends FeedEvent {
 
   @override
   List<Object?> get props => [postId, rating];
+}
+
+class FeedFilterChanged extends FeedEvent {
+  final FilterType filterType;
+
+  const FeedFilterChanged(this.filterType);
+
+  @override
+  List<Object?> get props => [filterType];
+}
+
+class FeedTargetingFilterChanged extends FeedEvent {
+  final TargetingCriteria? targetingCriteria;
+
+  const FeedTargetingFilterChanged(this.targetingCriteria);
+
+  @override
+  List<Object?> get props => [targetingCriteria];
 }

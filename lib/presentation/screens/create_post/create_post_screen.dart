@@ -7,140 +7,7 @@ import '../../../data/models/post_model.dart';
 import '../../../data/models/step_type_model.dart';
 import '../../../data/models/targeting_model.dart';
 import '../../bloc/auth/auth_bloc.dart';
-
-class PostStepWidget extends StatefulWidget {
-  final VoidCallback onRemove;
-  final int stepNumber;
-  final bool enabled;
-  final List<StepTypeModel> stepTypes;
-
-  const PostStepWidget({
-    super.key,
-    required this.onRemove,
-    required this.stepNumber,
-    required this.stepTypes,
-    this.enabled = true,
-  });
-
-  PostStep? toPostStep() {
-    if (_PostStepWidgetState.currentState == null) return null;
-    return _PostStepWidgetState.currentState!.getStepData();
-  }
-
-  @override
-  State<PostStepWidget> createState() => _PostStepWidgetState();
-}
-
-class _PostStepWidgetState extends State<PostStepWidget> {
-  static _PostStepWidgetState? currentState;
-  late StepTypeModel _selectedStepType;
-  final _titleController = TextEditingController();
-  final _descriptionController = TextEditingController();
-  final Map<String, TextEditingController> _optionControllers = {};
-
-  @override
-  void initState() {
-    super.initState();
-    currentState = this;
-    _selectedStepType = widget.stepTypes.first;
-    _initializeOptionControllers();
-  }
-
-  void _initializeOptionControllers() {
-    for (final option in _selectedStepType.options) {
-      _optionControllers[option.id] = TextEditingController();
-    }
-  }
-
-  @override
-  void dispose() {
-    if (currentState == this) {
-      currentState = null;
-    }
-    _titleController.dispose();
-    _descriptionController.dispose();
-    for (final controller in _optionControllers.values) {
-      controller.dispose();
-    }
-    super.dispose();
-  }
-
-  PostStep getStepData() {
-    final content = <String, dynamic>{};
-    for (final option in _selectedStepType.options) {
-      content[option.id] = _optionControllers[option.id]?.text ?? '';
-    }
-
-    return PostStep(
-      id: 'step_${DateTime.now().millisecondsSinceEpoch}',
-      title: _titleController.text,
-      description: _descriptionController.text,
-      type: StepType.values.firstWhere(
-        (t) => t.name == _selectedStepType.id,
-        orElse: () => StepType.text,
-      ),
-      content: content,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Step ${widget.stepNumber}',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.remove_circle_outline),
-                  onPressed: widget.enabled ? widget.onRemove : null,
-                  color: Colors.red,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _titleController,
-              enabled: widget.enabled,
-              decoration: const InputDecoration(
-                labelText: 'Step Title',
-                border: OutlineInputBorder(),
-                hintText: 'e.g., Mix the ingredients',
-              ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter a step title';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _descriptionController,
-              enabled: widget.enabled,
-              decoration: const InputDecoration(
-                labelText: 'Step Description',
-                border: OutlineInputBorder(),
-                hintText: 'Brief description of this step',
-              ),
-              maxLines: 2,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+import '../../widgets/post_creation/post_step_widget.dart';
 
 class CreatePostScreen extends StatefulWidget {
   const CreatePostScreen({super.key});
@@ -151,9 +18,9 @@ class CreatePostScreen extends StatefulWidget {
 
 class _CreatePostScreenState extends State<CreatePostScreen> {
   final _formKey = GlobalKey<FormState>();
-  final List<PostStepWidget> _steps = [];
-  String _title = '';
-  String _description = '';
+  final List<Widget> _steps = [];
+  final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
   final _postRepository = getIt<PostRepository>();
   final _stepTypeRepository = getIt<StepTypeRepository>();
   bool _isLoading = false;
@@ -177,6 +44,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
   @override
   void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
     _interestsController.dispose();
     _minAgeController.dispose();
     _maxAgeController.dispose();
@@ -222,13 +91,16 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       _steps.removeAt(index);
       // Update step numbers
       for (var i = 0; i < _steps.length; i++) {
-        _steps[i] = PostStepWidget(
-          key: UniqueKey(),
-          onRemove: () => _removeStep(i),
-          stepNumber: i + 1,
-          enabled: !_isLoading,
-          stepTypes: _availableStepTypes,
-        );
+        final currentStep = _steps[i];
+        if (currentStep is PostStepWidget) {
+          _steps[i] = PostStepWidget(
+            key: UniqueKey(),
+            onRemove: () => _removeStep(i),
+            stepNumber: i + 1,
+            enabled: !_isLoading,
+            stepTypes: _availableStepTypes,
+          );
+        }
       }
     });
   }
@@ -246,6 +118,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         }
 
         final steps = _steps
+            .whereType<PostStepWidget>()
             .map((stepWidget) => stepWidget.toPostStep())
             .where((step) => step != null)
             .cast<PostStep>()
@@ -260,8 +133,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           userId: authState.userId!,
           username: authState.username ?? 'Anonymous',
           userProfileImage: 'https://i.pravatar.cc/150?u=${authState.userId}',
-          title: _title,
-          description: _description,
+          title: _titleController.text,
+          description: _descriptionController.text,
           steps: steps,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
@@ -384,13 +257,13 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 padding: const EdgeInsets.all(16),
                 children: [
                   TextFormField(
+                    controller: _titleController,
                     enabled: !_isLoading,
                     decoration: const InputDecoration(
                       labelText: 'Title',
                       border: OutlineInputBorder(),
                       hintText: 'e.g., How to Make Perfect Pancakes',
                     ),
-                    onChanged: (value) => _title = value,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter a title';
@@ -400,6 +273,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
+                    controller: _descriptionController,
                     enabled: !_isLoading,
                     decoration: const InputDecoration(
                       labelText: 'Description',
@@ -407,7 +281,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       hintText: 'A brief description of what this post is about',
                     ),
                     maxLines: 3,
-                    onChanged: (value) => _description = value,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter a description';

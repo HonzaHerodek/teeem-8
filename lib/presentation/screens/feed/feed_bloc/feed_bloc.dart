@@ -1,20 +1,22 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/errors/app_exception.dart';
-import '../../../../core/services/feed_filter_service.dart';
 import '../../../../core/services/rating_service.dart';
 import '../../../../domain/repositories/auth_repository.dart';
 import '../../../../domain/repositories/post_repository.dart';
 import '../../../../domain/repositories/user_repository.dart';
 import '../../../../data/models/post_model.dart';
 import '../../../../data/models/user_model.dart';
+import '../../../widgets/filtering/services/filter_service.dart';
 import 'feed_event.dart';
 import 'feed_state.dart';
+
+typedef Emitter<T> = void Function(T state);
 
 class FeedBloc extends Bloc<FeedEvent, FeedState> {
   final PostRepository _postRepository;
   final AuthRepository _authRepository;
   final UserRepository _userRepository;
-  final FeedFilterService _feedFilterService;
+  final FilterService _filterService;
   final RatingService _ratingService;
   static const _postsPerPage = 10;
 
@@ -22,27 +24,27 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> {
     required PostRepository postRepository,
     required AuthRepository authRepository,
     required UserRepository userRepository,
-    required FeedFilterService feedFilterService,
+    required FilterService filterService,
     required RatingService ratingService,
   })  : _postRepository = postRepository,
         _authRepository = authRepository,
         _userRepository = userRepository,
-        _feedFilterService = feedFilterService,
+        _filterService = filterService,
         _ratingService = ratingService,
         super(const FeedState()) {
-    on<FeedStarted>(_onFeedStarted);
-    on<FeedRefreshed>(_onFeedRefreshed);
-    on<FeedLoadMore>(_onFeedLoadMore);
-    on<FeedPostLiked>(_onFeedPostLiked);
-    on<FeedPostUnliked>(_onFeedPostUnliked);
-    on<FeedPostDeleted>(_onFeedPostDeleted);
-    on<FeedPostHidden>(_onFeedPostHidden);
-    on<FeedPostSaved>(_onFeedPostSaved);
-    on<FeedPostUnsaved>(_onFeedPostUnsaved);
-    on<FeedPostReported>(_onFeedPostReported);
-    on<FeedPostRated>(_onFeedPostRated);
-    on<FeedTargetingFilterChanged>(_onFeedTargetingFilterChanged);
-    on<FeedFilterChanged>(_onFeedFilterChanged);
+    on<FeedStarted>((event, emit) async => await _onFeedStarted(event, emit));
+    on<FeedRefreshed>((event, emit) async => await _onFeedRefreshed(event, emit));
+    on<FeedLoadMore>((event, emit) async => await _onFeedLoadMore(event, emit));
+    on<FeedPostLiked>((event, emit) async => await _onFeedPostLiked(event, emit));
+    on<FeedPostUnliked>((event, emit) async => await _onFeedPostUnliked(event, emit));
+    on<FeedPostDeleted>((event, emit) async => await _onFeedPostDeleted(event, emit));
+    on<FeedPostHidden>((event, emit) async => await _onFeedPostHidden(event, emit));
+    on<FeedPostSaved>((event, emit) async => await _onFeedPostSaved(event, emit));
+    on<FeedPostUnsaved>((event, emit) async => await _onFeedPostUnsaved(event, emit));
+    on<FeedPostReported>((event, emit) async => await _onFeedPostReported(event, emit));
+    on<FeedPostRated>((event, emit) async => await _onFeedPostRated(event, emit));
+    on<FeedTargetingFilterChanged>((event, emit) async => await _onFeedTargetingFilterChanged(event, emit));
+    on<FeedFilterChanged>((event, emit) async => await _onFeedFilterChanged(event, emit));
   }
 
   Future<void> _onFeedStarted(
@@ -90,7 +92,7 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> {
         currentFilter: event.filterType,
       ));
 
-      _feedFilterService.setFilter(event.filterType);
+      _filterService.setFilter(event.filterType);
 
       final currentUser = await _userRepository.getCurrentUser();
       if (currentUser == null) {
@@ -379,6 +381,6 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> {
     }
 
     // Apply standard feed filters and type filters
-    return _feedFilterService.filterPosts(posts, currentUser);
+    return _filterService.filterPosts(posts, currentUser);
   }
 }

@@ -1,14 +1,8 @@
-import '../../data/models/post_model.dart';
-import '../../data/models/user_model.dart';
+import '../../../../data/models/post_model.dart';
+import '../../../../data/models/user_model.dart';
+import '../models/filter_type.dart';
 
-enum FilterType {
-  none,
-  group,
-  pair,
-  self,
-}
-
-class FeedFilterService {
+class FilterService {
   FilterType _currentFilter = FilterType.none;
 
   FilterType get currentFilter => _currentFilter;

@@ -1,8 +1,7 @@
-import 'package:equatable/equatable.dart';
+import '../../../../core/errors/app_exception.dart';
 import '../../../../data/models/post_model.dart';
 import '../../../../data/models/targeting_model.dart';
-import '../../../../core/errors/app_exception.dart';
-import '../../../../core/services/feed_filter_service.dart';
+import '../../../widgets/filtering/models/filter_type.dart';
 
 enum FeedStatus {
   initial,
@@ -12,14 +11,13 @@ enum FeedStatus {
   loadingMore,
 }
 
-class FeedState extends Equatable {
+class FeedState {
   final FeedStatus status;
   final List<PostModel> posts;
-  final AppException? error;
   final bool hasReachedMax;
-  final String? lastPostId;
   final String? currentUserId;
-  final int page;
+  final String? lastPostId;
+  final AppException? error;
   final bool isRefreshing;
   final TargetingCriteria? targetingFilter;
   final FilterType currentFilter;
@@ -27,41 +25,14 @@ class FeedState extends Equatable {
   const FeedState({
     this.status = FeedStatus.initial,
     this.posts = const [],
-    this.error,
     this.hasReachedMax = false,
-    this.lastPostId,
     this.currentUserId,
-    this.page = 1,
+    this.lastPostId,
+    this.error,
     this.isRefreshing = false,
     this.targetingFilter,
     this.currentFilter = FilterType.none,
   });
-
-  FeedState copyWith({
-    FeedStatus? status,
-    List<PostModel>? posts,
-    AppException? error,
-    bool? hasReachedMax,
-    String? lastPostId,
-    String? currentUserId,
-    int? page,
-    bool? isRefreshing,
-    TargetingCriteria? targetingFilter,
-    FilterType? currentFilter,
-  }) {
-    return FeedState(
-      status: status ?? this.status,
-      posts: posts ?? this.posts,
-      error: error ?? this.error,
-      hasReachedMax: hasReachedMax ?? this.hasReachedMax,
-      lastPostId: lastPostId ?? this.lastPostId,
-      currentUserId: currentUserId ?? this.currentUserId,
-      page: page ?? this.page,
-      isRefreshing: isRefreshing ?? this.isRefreshing,
-      targetingFilter: targetingFilter ?? this.targetingFilter,
-      currentFilter: currentFilter ?? this.currentFilter,
-    );
-  }
 
   bool get isInitial => status == FeedStatus.initial;
   bool get isLoading => status == FeedStatus.loading;
@@ -69,17 +40,66 @@ class FeedState extends Equatable {
   bool get isFailure => status == FeedStatus.failure;
   bool get isLoadingMore => status == FeedStatus.loadingMore;
 
-  @override
+  FeedState copyWith({
+    FeedStatus? status,
+    List<PostModel>? posts,
+    bool? hasReachedMax,
+    String? currentUserId,
+    String? lastPostId,
+    AppException? error,
+    bool? isRefreshing,
+    TargetingCriteria? targetingFilter,
+    FilterType? currentFilter,
+  }) {
+    return FeedState(
+      status: status ?? this.status,
+      posts: posts ?? this.posts,
+      hasReachedMax: hasReachedMax ?? this.hasReachedMax,
+      currentUserId: currentUserId ?? this.currentUserId,
+      lastPostId: lastPostId ?? this.lastPostId,
+      error: error ?? this.error,
+      isRefreshing: isRefreshing ?? this.isRefreshing,
+      targetingFilter: targetingFilter ?? this.targetingFilter,
+      currentFilter: currentFilter ?? this.currentFilter,
+    );
+  }
+
   List<Object?> get props => [
         status,
         posts,
-        error,
         hasReachedMax,
-        lastPostId,
         currentUserId,
-        page,
+        lastPostId,
+        error,
         isRefreshing,
         targetingFilter,
         currentFilter,
       ];
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is FeedState &&
+        other.status == status &&
+        other.posts == posts &&
+        other.hasReachedMax == hasReachedMax &&
+        other.currentUserId == currentUserId &&
+        other.lastPostId == lastPostId &&
+        other.error == error &&
+        other.isRefreshing == isRefreshing &&
+        other.targetingFilter == targetingFilter &&
+        other.currentFilter == currentFilter;
+  }
+
+  @override
+  int get hashCode =>
+      status.hashCode ^
+      posts.hashCode ^
+      hasReachedMax.hashCode ^
+      currentUserId.hashCode ^
+      lastPostId.hashCode ^
+      error.hashCode ^
+      isRefreshing.hashCode ^
+      targetingFilter.hashCode ^
+      currentFilter.hashCode;
 }
