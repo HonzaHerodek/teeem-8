@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../domain/repositories/auth_repository.dart';
+import '../../data/models/user_model.dart';
 
 class FirebaseAuthRepository implements AuthRepository {
   final FirebaseAuth _firebaseAuth;
@@ -13,19 +14,24 @@ class FirebaseAuthRepository implements AuthRepository {
         _firestore = firestore ?? FirebaseFirestore.instance;
 
   @override
-  Future<void> signIn(String email, String password) async {
+  Future<UserModel?> signInWithEmailAndPassword(String email, String password) async {
     try {
-      await _firebaseAuth.signInWithEmailAndPassword(
+      final userCredential = await _firebaseAuth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
+      
+      if (userCredential.user != null) {
+        return getCurrentUser();
+      }
+      return null;
     } catch (e) {
       throw _handleAuthException(e);
     }
   }
 
   @override
-  Future<void> signUp(String email, String password, String username) async {
+  Future<UserModel?> signUpWithEmailAndPassword(String email, String password, String username) async {
     try {
       // Check if username is available
       final usernameDoc = await _firestore
@@ -43,18 +49,26 @@ class FirebaseAuthRepository implements AuthRepository {
         password: password,
       );
 
-      // Create user profile
-      await _firestore.collection('users').doc(userCredential.user!.uid).set({
+      final userData = {
         'username': username,
         'email': email,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      };
+
+      // Create user profile
+      await _firestore.collection('users').doc(userCredential.user!.uid).set(userData);
 
       // Reserve username
       await _firestore.collection('usernames').doc(username.toLowerCase()).set({
         'uid': userCredential.user!.uid,
       });
+
+      return UserModel(
+        id: userCredential.user!.uid,
+        email: email,
+        username: username,
+      );
     } catch (e) {
       throw _handleAuthException(e);
     }
@@ -70,18 +84,23 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<bool> isSignedIn() async {
-    return _firebaseAuth.currentUser != null;
-  }
+  Future<UserModel?> getCurrentUser() async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) return null;
 
-  @override
-  Stream<bool> get authStateChanges {
-    return _firebaseAuth.authStateChanges().map((user) => user != null);
-  }
+    try {
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      if (!userDoc.exists) return null;
 
-  @override
-  Future<String?> getCurrentUserId() async {
-    return _firebaseAuth.currentUser?.uid;
+      final userData = userDoc.data()!;
+      return UserModel(
+        id: user.uid,
+        email: user.email!,
+        username: userData['username'] as String,
+      );
+    } catch (e) {
+      throw _handleAuthException(e);
+    }
   }
 
   Exception _handleAuthException(dynamic e) {

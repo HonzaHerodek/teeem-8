@@ -25,7 +25,8 @@ class InFeedPostCreation extends StatefulWidget {
   });
 
   static InFeedPostCreationController? of(BuildContext context) {
-    final state = context.findRootAncestorStateOfType<InFeedPostCreationState>();
+    final state =
+        context.findRootAncestorStateOfType<InFeedPostCreationState>();
     if (state != null) {
       return state;
     }
@@ -431,7 +432,8 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
                       border: Border.all(color: Colors.white24, width: 1),
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                      icon: const Icon(Icons.close,
+                          color: Colors.white, size: 20),
                       onPressed: widget.onCancel,
                       padding: const EdgeInsets.all(8),
                       constraints: const BoxConstraints(

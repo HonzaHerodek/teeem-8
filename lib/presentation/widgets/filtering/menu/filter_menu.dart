@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:myapp/presentation/screens/feed/feed_bloc/feed_bloc.dart';
+import 'package:myapp/presentation/screens/feed/feed_bloc/feed_event.dart';
 import 'dart:math' as math;
 import '../models/filter_menu_item.dart';
 import '../models/filter_type.dart';
@@ -45,38 +48,35 @@ class _FilterMenuState extends State<FilterMenu>
   }
 
   void _toggleMenu() {
-    print('_toggleMenu called, current _isOpen: $_isOpen');
     setState(() {
       _isOpen = !_isOpen;
-      if (_isOpen) {
-        _controller.forward();
-      } else {
-        _controller.reverse();
+      if (!_isOpen) {
         _isSearchVisible = false;
         _activeFilterType = null;
       }
     });
-    print('After toggle - _isOpen: $_isOpen, _isSearchVisible: $_isSearchVisible');
+    if (_isOpen) {
+      _controller.forward();
+    } else {
+      _controller.reverse();
+    }
   }
 
   void _handleFilterSelected(FilterType type, VoidCallback onFilter) {
-    print('_handleFilterSelected called with type: ${type.displayName}');
     setState(() {
       _activeFilterType = type;
       _isSearchVisible = true;
     });
     onFilter();
-    print(
-        'After filter selection - _activeFilterType: ${_activeFilterType?.displayName}, _isSearchVisible: $_isSearchVisible');
+    // Dispatch FeedSearchChanged with an empty query
+    context.read<FeedBloc>().add(const FeedSearchChanged(''));
   }
 
   void _handleSearchClose() {
-    print('_handleSearchClose called');
     setState(() {
       _activeFilterType = null;
       _isSearchVisible = false;
     });
-    print('After search close - _activeFilterType: null, _isSearchVisible: false');
   }
 
   Widget _buildMenuItem(FilterMenuItem item, int index, int totalItems) {
@@ -108,7 +108,6 @@ class _FilterMenuState extends State<FilterMenu>
                   icon: Icon(item.icon, color: Colors.white),
                   tooltip: item.tooltip,
                   onPressed: () {
-                    print('Filter menu item clicked: ${item.type.displayName}');
                     item.onPressed();
                   },
                 ),
@@ -131,67 +130,40 @@ class _FilterMenuState extends State<FilterMenu>
           _handleFilterSelected(FilterType.self, widget.onSelfFilter),
     );
 
-    print(
-        'FilterMenu build - _isSearchVisible: $_isSearchVisible, _activeFilterType: ${_activeFilterType?.displayName}');
-
-    return SizedBox(
-      width: MediaQuery.of(context).size.width,
-      height: 48,
-      child: Stack(
-        alignment: Alignment.centerRight,
-        clipBehavior: Clip.none,
-        children: [
-          // TODO: Implement the search bar with chips to appear next to the filtering menu (on the left side). All components (including search bar) except for chips exist. The search bar doesn't show. - BUG Also, there shouldn't be row bar on top of the screen.
-          // Search Bar
-          if (_isSearchVisible && _activeFilterType != null)
-            Positioned(
-              right: 48, // Positioned to the left of the filtering area
-              child: Container(
-                width: 300,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.pink,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: FilterSearchBar(
-                  filterType: _activeFilterType!,
-                  onSearch: widget.onSearch ?? (_) {},
-                  onClose: _handleSearchClose,
-                ),
-              ),
-            ),
-          // Menu Button and Items
-          Positioned(
-            right: 0,
-            child: SizedBox(
-              width: 48,
-              height: 48,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  ...filterItems.asMap().entries.map(
-                        (entry) => _buildMenuItem(
-                            entry.value, entry.key, filterItems.length),
-                      ),
-                  Container(
-                    decoration: const BoxDecoration(
-                      color: Colors.pink,
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: Icon(
-                        _isOpen ? Icons.close : Icons.filter_list,
-                        color: Colors.white,
-                      ),
-                      onPressed: _toggleMenu,
-                    ),
-                  ),
-                ],
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        if (_isSearchVisible && _activeFilterType != null)
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: FilterSearchBar(
+                filterType: _activeFilterType!,
+                onSearch: (query) {
+                  context.read<FeedBloc>().add(FeedSearchChanged(query));
+                },
+                onClose: _handleSearchClose,
               ),
             ),
           ),
-        ],
-      ),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            ...filterItems.asMap().entries.map((entry) => _buildMenuItem(
+                  entry.value,
+                  entry.key,
+                  filterItems.length,
+                )),
+            IconButton(
+              icon: Icon(
+                _isOpen ? Icons.close : Icons.filter_list,
+                color: Colors.white,
+              ),
+              onPressed: _toggleMenu,
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

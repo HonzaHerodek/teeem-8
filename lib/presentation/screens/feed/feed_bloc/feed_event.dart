@@ -110,3 +110,12 @@ class FeedTargetingFilterChanged extends FeedEvent {
   @override
   List<Object?> get props => [targetingCriteria];
 }
+
+class FeedSearchChanged extends FeedEvent {
+  final String query;
+
+  const FeedSearchChanged(this.query);
+
+  @override
+  List<Object?> get props => [query];
+}
