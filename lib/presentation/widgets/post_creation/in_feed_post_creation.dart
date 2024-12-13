@@ -130,10 +130,21 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
     }
   }
 
+  String _getCancelButtonText() {
+    if (_currentPage == 0) {
+      return 'cancel POST';
+    }
+    
+    final stepState = _stepKeys[_currentPage - 1].currentState;
+    if (stepState != null && stepState.hasSelectedStepType) {
+      return 'EDIT step type';
+    }
+    
+    return 'cancel STEP';
+  }
+
   @override
   Future<void> save() async {
-    print('Attempting to save post...');
-
     if (_steps.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -145,18 +156,6 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
     }
 
     if (!_formKey.currentState!.validate()) {
-      print('Form validation failed');
-      return;
-    }
-
-    if (!_validateSteps()) {
-      print('Step validation failed');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fill in all step fields'),
-          backgroundColor: Colors.red,
-        ),
-      );
       return;
     }
 
@@ -171,16 +170,10 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
       }
 
       final steps = _steps
-          .map((stepWidget) {
-            final step = stepWidget.toPostStep();
-            print('Step data: $step');
-            return step;
-          })
+          .map((stepWidget) => stepWidget.toPostStep())
           .where((step) => step != null)
           .cast<PostStep>()
           .toList();
-
-      print('Creating post with ${steps.length} steps');
 
       final post = PostModel(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -205,16 +198,10 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
       );
 
       await _postRepository.createPost(post);
-      print('Post created successfully');
-
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Post created successfully')),
-        );
         widget.onComplete(true);
       }
     } catch (e) {
-      print('Error creating post: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -497,25 +484,26 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
                   ),
                 ),
               ],
-              // Cancel button
+              // Cancel/Edit button
               Align(
                 alignment: Alignment.topCenter,
                 child: Padding(
                   padding: const EdgeInsets.only(top: 16),
                   child: Container(
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
                       color: Colors.black.withOpacity(0.225),
                       border: Border.all(color: Colors.white24, width: 1),
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    child: IconButton(
-                      icon: const Icon(Icons.close,
-                          color: Colors.white, size: 20),
-                      onPressed: widget.onCancel,
-                      padding: const EdgeInsets.all(8),
-                      constraints: const BoxConstraints(
-                        minWidth: 40,
-                        minHeight: 40,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Text(
+                        _getCancelButtonText(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),
