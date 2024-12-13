@@ -8,8 +8,6 @@ import '../../../data/models/step_type_model.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import './post_step_widget.dart';
 
-// TODO: the confirmation action button in feed must be able to work with in_feed_post_creation and create a post like is the case with create_post_screen. Potential issues may be with handling context (steps, step types, step content) and with communication between the in_feed_post_creation and the feed_screen (i.e. the confirmation action button - in the area of a plus button (add post) after the plus button is clicked)
-
 abstract class InFeedPostCreationController {
   Future<void> save();
 }
@@ -25,8 +23,7 @@ class InFeedPostCreation extends StatefulWidget {
   });
 
   static InFeedPostCreationController? of(BuildContext context) {
-    final state =
-        context.findRootAncestorStateOfType<InFeedPostCreationState>();
+    final state = context.findRootAncestorStateOfType<InFeedPostCreationState>();
     if (state != null) {
       return state;
     }
@@ -48,7 +45,8 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
   final _stepTypeRepository = getIt<StepTypeRepository>();
   bool _isLoading = false;
   List<StepTypeModel> _availableStepTypes = [];
-  final ScrollController _scrollController = ScrollController();
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
 
   @override
   void initState() {
@@ -60,7 +58,7 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
-    _scrollController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -97,16 +95,12 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
       _steps.add(newStep);
     });
 
-    // Scroll to the bottom after adding a step
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
+    // Navigate to the new step immediately
+    _pageController.animateToPage(
+      1, // Always go to slide 2 (index 1)
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
   }
 
   void _removeStep(int index) {
@@ -126,23 +120,19 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
         );
       }
     });
-  }
 
-  bool _validateSteps() {
-    bool isValid = true;
-    for (var i = 0; i < _stepKeys.length; i++) {
-      final state = _stepKeys[i].currentState;
-      if (state == null || !state.validate()) {
-        isValid = false;
-        print('Step ${i + 1} validation failed'); // Debug print
-      }
+    // If we removed the current page, animate to the previous page
+    if (_currentPage >= _steps.length) {
+      _pageController.previousPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
     }
-    return isValid;
   }
 
   @override
   Future<void> save() async {
-    print('Attempting to save post...'); // Debug print
+    print('Attempting to save post...');
 
     if (_steps.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -155,12 +145,12 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
     }
 
     if (!_formKey.currentState!.validate()) {
-      print('Form validation failed'); // Debug print
+      print('Form validation failed');
       return;
     }
 
     if (!_validateSteps()) {
-      print('Step validation failed'); // Debug print
+      print('Step validation failed');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please fill in all step fields'),
@@ -183,14 +173,14 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
       final steps = _steps
           .map((stepWidget) {
             final step = stepWidget.toPostStep();
-            print('Step data: $step'); // Debug print
+            print('Step data: $step');
             return step;
           })
           .where((step) => step != null)
           .cast<PostStep>()
           .toList();
 
-      print('Creating post with ${steps.length} steps'); // Debug print
+      print('Creating post with ${steps.length} steps');
 
       final post = PostModel(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -215,7 +205,7 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
       );
 
       await _postRepository.createPost(post);
-      print('Post created successfully'); // Debug print
+      print('Post created successfully');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -224,7 +214,7 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
         widget.onComplete(true);
       }
     } catch (e) {
-      print('Error creating post: $e'); // Debug print
+      print('Error creating post: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -241,6 +231,18 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
         });
       }
     }
+  }
+
+  bool _validateSteps() {
+    bool isValid = true;
+    for (var i = 0; i < _stepKeys.length; i++) {
+      final state = _stepKeys[i].currentState;
+      if (state == null || !state.validate()) {
+        isValid = false;
+        print('Step ${i + 1} validation failed');
+      }
+    }
+    return isValid;
   }
 
   Widget _buildActionButton({
@@ -272,6 +274,105 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
             ),
           ),
         ],
+      ],
+    );
+  }
+
+  Widget _buildFirstPage() {
+    return Stack(
+      children: [
+        ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          children: [
+            const SizedBox(height: 40),
+            TextFormField(
+              controller: _titleController,
+              enabled: !_isLoading,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: 'Title',
+                labelStyle: TextStyle(color: Colors.white70),
+                border: OutlineInputBorder(),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.white30),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.white),
+                ),
+                hintText: 'Title of Task',
+                hintStyle: TextStyle(color: Colors.white30),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter a title';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _descriptionController,
+              enabled: !_isLoading,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: 'Description',
+                labelStyle: TextStyle(color: Colors.white70),
+                border: OutlineInputBorder(),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.white30),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.white),
+                ),
+                hintText: 'short summary of the goal',
+                hintStyle: TextStyle(color: Colors.white30),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+              ),
+              maxLines: 2,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter a description';
+                }
+                return null;
+              },
+            ),
+          ],
+        ),
+        // Action buttons always visible on first page
+        Positioned(
+          bottom: 32,
+          left: 0,
+          right: 0,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildActionButton(
+                icon: Icons.settings,
+                onPressed: () {
+                  // TODO: Implement settings action
+                },
+              ),
+              _buildActionButton(
+                icon: Icons.auto_awesome,
+                onPressed: () {
+                  // TODO: Implement AI action
+                },
+              ),
+              _buildActionButton(
+                icon: Icons.playlist_add,
+                onPressed: _addStep,
+                label: 'Add Step',
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -326,101 +427,77 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
                   child: SizedBox(
                     width: size * 0.8,
                     height: size * 0.8,
-                    child: ListView(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: PageView(
+                      controller: _pageController,
+                      onPageChanged: (index) {
+                        setState(() {
+                          _currentPage = index;
+                        });
+                      },
                       children: [
-                        const SizedBox(height: 40),
-                        TextFormField(
-                          controller: _titleController,
-                          enabled: !_isLoading,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: const InputDecoration(
-                            labelText: 'Title',
-                            labelStyle: TextStyle(color: Colors.white70),
-                            border: OutlineInputBorder(),
-                            enabledBorder: OutlineInputBorder(
-                              borderSide: BorderSide(color: Colors.white30),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderSide: BorderSide(color: Colors.white),
-                            ),
-                            hintText: 'Title of Task',
-                            hintStyle: TextStyle(color: Colors.white30),
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter a title';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _descriptionController,
-                          enabled: !_isLoading,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: const InputDecoration(
-                            labelText: 'Description',
-                            labelStyle: TextStyle(color: Colors.white70),
-                            border: OutlineInputBorder(),
-                            enabledBorder: OutlineInputBorder(
-                              borderSide: BorderSide(color: Colors.white30),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderSide: BorderSide(color: Colors.white),
-                            ),
-                            hintText: 'short summary of the goal',
-                            hintStyle: TextStyle(color: Colors.white30),
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                          ),
-                          maxLines: 2,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter a description';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        ..._steps,
-                        const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            _buildActionButton(
-                              icon: Icons.settings,
-                              onPressed: () {
-                                // TODO: Implement settings action
-                              },
-                            ),
-                            _buildActionButton(
-                              icon: Icons.auto_awesome,
-                              onPressed: () {
-                                // TODO: Implement AI action
-                              },
-                            ),
-                            _buildActionButton(
-                              icon: Icons.playlist_add,
-                              onPressed: _addStep,
-                              label: 'Add Step',
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
+                        _buildFirstPage(),
+                        ..._steps.map((step) => Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: SingleChildScrollView(
+                                child: Column(
+                                  children: [
+                                    const SizedBox(height: 40),
+                                    step,
+                                  ],
+                                ),
+                              ),
+                            )),
                       ],
                     ),
                   ),
                 ),
               ),
-              // Cancel button positioned at the top
+              // Navigation arrows
+              if (_steps.isNotEmpty) ...[
+                Positioned(
+                  left: 8,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: _currentPage > 0
+                        ? IconButton(
+                            icon: const Icon(
+                              Icons.arrow_back_ios,
+                              color: Colors.white70,
+                            ),
+                            onPressed: () {
+                              _pageController.previousPage(
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeInOut,
+                              );
+                            },
+                          )
+                        : const SizedBox(width: 48),
+                  ),
+                ),
+                Positioned(
+                  right: 8,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.arrow_forward_ios,
+                        color: Colors.white70,
+                      ),
+                      onPressed: () {
+                        if (_currentPage < _steps.length) {
+                          _pageController.nextPage(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ],
+              // Cancel button
               Align(
                 alignment: Alignment.topCenter,
                 child: Padding(
