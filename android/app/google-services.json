@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "349543919785",
+    "project_id": "teeem-dev3",
+    "storage_bucket": "teeem-dev3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:349543919785:android:af25359a27c2c5dc46f9b8",
+        "android_client_info": {
+          "package_name": "com.example.myapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBozLbb5lLE5vrZm5V12aRhEMLpPmAbLYM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
