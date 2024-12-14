@@ -23,7 +23,8 @@ class InFeedPostCreation extends StatefulWidget {
   });
 
   static InFeedPostCreationController? of(BuildContext context) {
-    final state = context.findRootAncestorStateOfType<InFeedPostCreationState>();
+    final state =
+        context.findRootAncestorStateOfType<InFeedPostCreationState>();
     if (state != null) {
       return state;
     }
@@ -104,43 +105,134 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
   }
 
   void _removeStep(int index) {
-    setState(() {
-      _steps.removeAt(index);
-      _stepKeys.removeAt(index);
-      // Update step numbers
-      for (var i = 0; i < _steps.length; i++) {
-        final stepKey = GlobalKey<PostStepWidgetState>();
-        _stepKeys[i] = stepKey;
-        _steps[i] = PostStepWidget(
-          key: stepKey,
-          onRemove: () => _removeStep(i),
-          stepNumber: i + 1,
-          enabled: !_isLoading,
-          stepTypes: _availableStepTypes,
-        );
-      }
-    });
-
-    // If we removed the current page, animate to the previous page
-    if (_currentPage >= _steps.length) {
-      _pageController.previousPage(
+    // Only navigate back if we're removing the current step
+    if (index == _currentPage - 1) {
+      _pageController
+          .previousPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
-      );
+      )
+          .then((_) {
+        if (mounted) {
+          setState(() {
+            _steps.removeAt(index);
+            _stepKeys.removeAt(index);
+            // Update step numbers
+            for (var i = 0; i < _steps.length; i++) {
+              final stepKey = GlobalKey<PostStepWidgetState>();
+              _stepKeys[i] = stepKey;
+              _steps[i] = PostStepWidget(
+                key: stepKey,
+                onRemove: () => _removeStep(i),
+                stepNumber: i + 1,
+                enabled: !_isLoading,
+                stepTypes: _availableStepTypes,
+              );
+            }
+          });
+        }
+      });
+    } else {
+      // Otherwise, remove immediately
+      setState(() {
+        _steps.removeAt(index);
+        _stepKeys.removeAt(index);
+        // Update step numbers
+        for (var i = 0; i < _steps.length; i++) {
+          final stepKey = GlobalKey<PostStepWidgetState>();
+          _stepKeys[i] = stepKey;
+          _steps[i] = PostStepWidget(
+            key: stepKey,
+            onRemove: () => _removeStep(i),
+            stepNumber: i + 1,
+            enabled: !_isLoading,
+            stepTypes: _availableStepTypes,
+          );
+        }
+      });
     }
   }
 
-  String _getCancelButtonText() {
+  void _handleCancelButtonPress() {
     if (_currentPage == 0) {
-      return 'cancel POST';
+      // Cancel entire post creation
+      widget.onCancel();
+      return;
     }
-    
+
     final stepState = _stepKeys[_currentPage - 1].currentState;
     if (stepState != null && stepState.hasSelectedStepType) {
-      return 'EDIT step type';
+      // Reset step type selection to allow choosing a different type
+      setState(() {
+        final stepKey = GlobalKey<PostStepWidgetState>();
+        _stepKeys[_currentPage - 1] = stepKey;
+        _steps[_currentPage - 1] = PostStepWidget(
+          key: stepKey,
+          onRemove: () => _removeStep(_currentPage - 1),
+          stepNumber: _currentPage,
+          enabled: !_isLoading,
+          stepTypes: _availableStepTypes,
+        );
+      });
+    } else {
+      // Simply remove the step - _removeStep will handle the page transition
+      _removeStep(_currentPage - 1);
     }
-    
-    return 'cancel STEP';
+  }
+
+  Widget _buildCancelButton() {
+    return Positioned(
+      top: -24, // Align center with top border
+      left: 0,
+      right: 0,
+      child: Center(
+        child: Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white30, width: 1),
+          ),
+          child: IconButton(
+            icon: const Icon(Icons.close, color: Colors.white),
+            onPressed: _isLoading ? null : widget.onCancel,
+            padding: const EdgeInsets.all(8),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStepButton() {
+    bool showEditIcon = _currentPage > 0 &&
+        _steps.isNotEmpty &&
+        _steps[_currentPage - 1].key is GlobalKey<PostStepWidgetState> &&
+        (_steps[_currentPage - 1].key as GlobalKey<PostStepWidgetState>)
+                .currentState !=
+            null &&
+        (_steps[_currentPage - 1].key as GlobalKey<PostStepWidgetState>)
+            .currentState!
+            .hasSelectedStepType;
+
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 16),
+        child: GestureDetector(
+          onTap: _isLoading ? null : _handleCancelButtonPress,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.225),
+              border: Border.all(color: Colors.white24, width: 1),
+              shape: BoxShape.circle,
+            ),
+            padding: const EdgeInsets.all(8),
+            child: Icon(
+              showEditIcon ? Icons.edit : Icons.close,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -403,114 +495,89 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
         decoration: const BoxDecoration(
           shape: BoxShape.circle,
         ),
-        clipBehavior: Clip.antiAlias,
-        child: Container(
-          color: Colors.white.withOpacity(0.1),
-          child: Stack(
-            children: [
-              Form(
-                key: _formKey,
-                child: Center(
-                  child: SizedBox(
-                    width: size * 0.8,
-                    height: size * 0.8,
-                    child: PageView(
-                      controller: _pageController,
-                      onPageChanged: (index) {
-                        setState(() {
-                          _currentPage = index;
-                        });
-                      },
-                      children: [
-                        _buildFirstPage(),
-                        ..._steps.map((step) => Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              child: SingleChildScrollView(
-                                child: Column(
-                                  children: [
-                                    const SizedBox(height: 40),
-                                    step,
-                                  ],
-                                ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Form(
+              key: _formKey,
+              child: Center(
+                child: SizedBox(
+                  width: size * 0.8,
+                  height: size * 0.8,
+                  child: PageView(
+                    controller: _pageController,
+                    onPageChanged: (index) {
+                      setState(() {
+                        _currentPage = index;
+                      });
+                    },
+                    children: [
+                      _buildFirstPage(),
+                      ..._steps.map((step) => Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: SingleChildScrollView(
+                              child: Column(
+                                children: [
+                                  const SizedBox(height: 40),
+                                  step,
+                                ],
                               ),
-                            )),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              // Navigation arrows
-              if (_steps.isNotEmpty) ...[
-                Positioned(
-                  left: 8,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: _currentPage > 0
-                        ? IconButton(
-                            icon: const Icon(
-                              Icons.arrow_back_ios,
-                              color: Colors.white70,
                             ),
-                            onPressed: () {
-                              _pageController.previousPage(
-                                duration: const Duration(milliseconds: 300),
-                                curve: Curves.easeInOut,
-                              );
-                            },
-                          )
-                        : const SizedBox(width: 48),
-                  ),
-                ),
-                Positioned(
-                  right: 8,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.arrow_forward_ios,
-                        color: Colors.white70,
-                      ),
-                      onPressed: () {
-                        if (_currentPage < _steps.length) {
-                          _pageController.nextPage(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                          );
-                        }
-                      },
-                    ),
-                  ),
-                ),
-              ],
-              // Cancel/Edit button
-              Align(
-                alignment: Alignment.topCenter,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.225),
-                      border: Border.all(color: Colors.white24, width: 1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      child: Text(
-                        _getCancelButtonText(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
+                          )),
+                    ],
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+            // Navigation arrows
+            if (_steps.isNotEmpty)
+              Positioned(
+                left: 8,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: _currentPage > 0
+                      ? IconButton(
+                          icon: const Icon(
+                            Icons.arrow_back_ios,
+                            color: Colors.white70,
+                          ),
+                          onPressed: () {
+                            _pageController.previousPage(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                            );
+                          },
+                        )
+                      : const SizedBox(width: 48),
+                ),
+              ),
+            if (_steps.isNotEmpty)
+              Positioned(
+                right: 8,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.arrow_forward_ios,
+                      color: Colors.white70,
+                    ),
+                    onPressed: () {
+                      if (_currentPage < _steps.length) {
+                        _pageController.nextPage(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        );
+                      }
+                    },
+                  ),
+                ),
+              ),
+            // Cancel/Edit button
+            if (_currentPage == 0) _buildCancelButton(),
+            if (_currentPage > 0) _buildStepButton(),
+          ],
         ),
       ),
     );
