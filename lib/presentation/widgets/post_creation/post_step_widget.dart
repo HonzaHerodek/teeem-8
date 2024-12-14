@@ -30,15 +30,34 @@ class PostStepWidget extends StatefulWidget {
   State<PostStepWidget> createState() => PostStepWidgetState();
 }
 
-class PostStepWidgetState extends State<PostStepWidget> {
+class PostStepWidgetState extends State<PostStepWidget>
+    with AutomaticKeepAliveClientMixin {
   StepTypeModel? _selectedStepType;
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final Map<String, TextEditingController> _optionControllers = {};
 
+  @override
+  bool get wantKeepAlive => true;
+
   // Add this getter to expose step type selection state
   bool get hasSelectedStepType => _selectedStepType != null;
+
+  // Public getter for _selectedStepType
+  StepTypeModel? getSelectedStepType() {
+    return _selectedStepType;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Restore state if available
+    if (_selectedStepType != null) {
+      _initializeOptionControllers();
+      _restoreOptionValues();
+    }
+  }
 
   @override
   void dispose() {
@@ -57,6 +76,16 @@ class PostStepWidgetState extends State<PostStepWidget> {
     }
   }
 
+  void _restoreOptionValues() {
+    if (_selectedStepType == null) return;
+    for (final option in _selectedStepType!.options) {
+      if (_optionControllers.containsKey(option.id)) {
+        // Restore value if available
+        // _optionControllers[option.id]!.text = _optionValues[option.id] ?? '';
+      }
+    }
+  }
+
   void _onStepTypeSelected(StepTypeModel type) {
     setState(() {
       _selectedStepType = type;
@@ -66,6 +95,8 @@ class PostStepWidgetState extends State<PostStepWidget> {
       }
       _optionControllers.clear();
       _initializeOptionControllers();
+      _restoreOptionValues();
+      updateKeepAlive();
     });
   }
 
@@ -208,6 +239,9 @@ class PostStepWidgetState extends State<PostStepWidget> {
               }
               return null;
             },
+            onChanged: (value) {
+              updateKeepAlive();
+            },
           ),
           const SizedBox(height: 8),
           TextFormField(
@@ -238,6 +272,9 @@ class PostStepWidgetState extends State<PostStepWidget> {
               }
               return null;
             },
+            onChanged: (value) {
+              updateKeepAlive();
+            },
           ),
           ..._selectedStepType!.options.map((option) => Padding(
                 padding: const EdgeInsets.only(top: 8),
@@ -267,6 +304,9 @@ class PostStepWidgetState extends State<PostStepWidget> {
                     }
                     return null;
                   },
+                  onChanged: (value) {
+                    updateKeepAlive();
+                  },
                 ),
               )),
         ],
@@ -276,6 +316,7 @@ class PostStepWidgetState extends State<PostStepWidget> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return Padding(
       padding: const EdgeInsets.all(12),
       child: _selectedStepType == null

@@ -8,10 +8,12 @@ import '../../../data/models/step_type_model.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import './post_step_widget.dart';
 
+/// Controller for InFeedPostCreation widget.
 abstract class InFeedPostCreationController {
   Future<void> save();
 }
 
+/// Widget for creating a post in the feed.
 class InFeedPostCreation extends StatefulWidget {
   final VoidCallback onCancel;
   final Function(bool success) onComplete;
@@ -98,7 +100,7 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
 
     // Navigate to the new step immediately
     _pageController.animateToPage(
-      1, // Always go to slide 2 (index 1)
+      _steps.length, // Go to the newly added step
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
     );
@@ -212,6 +214,13 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
             .currentState!
             .hasSelectedStepType;
 
+    // Use the getter for _selectedStepType
+    final currentStepState =
+        (_steps[_currentPage - 1].key as GlobalKey<PostStepWidgetState>?)
+            ?.currentState;
+    final bool isStepTypeSelected =
+        currentStepState?.getSelectedStepType() != null;
+
     return Align(
       alignment: Alignment.topCenter,
       child: Padding(
@@ -226,7 +235,8 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
             ),
             padding: const EdgeInsets.all(8),
             child: Icon(
-              showEditIcon ? Icons.edit : Icons.close,
+              // Use isStepTypeSelected for immediate update
+              isStepTypeSelected ? Icons.edit : Icons.close,
               color: Colors.white,
             ),
           ),
@@ -328,36 +338,48 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
     required IconData icon,
     required VoidCallback onPressed,
     String? label,
+    bool isLarger = false,
   }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white24,
-          ),
-          child: IconButton(
-            icon: Icon(icon, color: Colors.white),
-            onPressed: _isLoading ? null : onPressed,
-            padding: const EdgeInsets.all(12),
-          ),
-        ),
-        if (label != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
+    return GestureDetector(
+      onTap: onPressed,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isLarger
+                  ? Colors.red.withOpacity(0.5)
+                  : Colors.blue
+                      .withOpacity(0.5), // Temporary colors for debugging
+              border: Border.all(
+                color: Colors.white.withOpacity(0.6),
+                width: 1,
+              ),
+            ),
+            child: Padding(
+              padding: isLarger
+                  ? const EdgeInsets.all(16)
+                  : const EdgeInsets.all(12),
+              child: Icon(icon, color: Colors.white, size: isLarger ? 28 : 24),
             ),
           ),
+          if (label != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.7),
+                fontSize: 12,
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 
-  Widget _buildFirstPage() {
+  Widget _buildFirstPage(double containerSize) {
     return Stack(
       children: [
         ListView(
@@ -422,34 +444,59 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
                 return null;
               },
             ),
+            const SizedBox(height: 100),
           ],
         ),
-        // Action buttons always visible on first page
         Positioned(
-          bottom: 32,
+          bottom: 0,
           left: 0,
           right: 0,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildActionButton(
-                icon: Icons.settings,
-                onPressed: () {
-                  // TODO: Implement settings action
-                },
+          child: Container(
+            height: 100,
+            decoration: BoxDecoration(
+              color: Colors.yellow.withOpacity(0.5),
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(containerSize * 0.5),
+                bottomRight: Radius.circular(containerSize * 0.5),
               ),
-              _buildActionButton(
-                icon: Icons.auto_awesome,
-                onPressed: () {
-                  // TODO: Implement AI action
-                },
-              ),
-              _buildActionButton(
-                icon: Icons.playlist_add,
-                onPressed: _addStep,
-                label: 'Add Step',
-              ),
-            ],
+              // TODO: Correct the shape of the button area to place buttons along the bottom border of the circular post_creation frame.
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildActionButton(
+                  icon: Icons.settings,
+                  onPressed: () {
+                    // TODO: Implement settings action
+                  },
+                  label: 'Settings',
+                ),
+                _buildActionButton(
+                  icon: Icons.auto_awesome,
+                  onPressed: () {
+                    // TODO: Implement AI action
+                  },
+                  label: 'AI',
+                  isLarger: true,
+                ),
+                _buildActionButton(
+                  icon: _steps.isEmpty
+                      ? Icons.add_circle
+                      : Icons.format_list_numbered,
+                  onPressed: _steps.isEmpty
+                      ? _addStep
+                      : () {
+                          if (_currentPage < _steps.length) {
+                            _pageController.nextPage(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                            );
+                          }
+                        },
+                  label: _steps.isEmpty ? 'Add Step' : 'Steps',
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -459,41 +506,37 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size.width - 32;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 16.0),
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withOpacity(0.3),
-            Colors.white.withOpacity(0.2),
-            Colors.white.withOpacity(0.15),
-          ],
-          stops: const [0.0, 0.5, 1.0],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 35,
-            spreadRadius: 8,
-            offset: const Offset(0, 15),
-          ),
-          BoxShadow(
-            color: Colors.black.withOpacity(0.15),
-            blurRadius: 25,
-            spreadRadius: 5,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
+    return ClipOval(
       child: Container(
-        decoration: const BoxDecoration(
+        margin: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 16.0),
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
           shape: BoxShape.circle,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white.withOpacity(0.3),
+              Colors.white.withOpacity(0.2),
+              Colors.white.withOpacity(0.15),
+            ],
+            stops: const [0.0, 0.5, 1.0],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 35,
+              spreadRadius: 8,
+              offset: const Offset(0, 15),
+            ),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 25,
+              spreadRadius: 5,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
         child: Stack(
           clipBehavior: Clip.none,
@@ -512,7 +555,7 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
                       });
                     },
                     children: [
-                      _buildFirstPage(),
+                      _buildFirstPage(size),
                       ..._steps.map((step) => Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             child: SingleChildScrollView(
@@ -558,20 +601,30 @@ class InFeedPostCreationState extends State<InFeedPostCreation>
                 top: 0,
                 bottom: 0,
                 child: Center(
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.arrow_forward_ios,
-                      color: Colors.white70,
-                    ),
-                    onPressed: () {
-                      if (_currentPage < _steps.length) {
-                        _pageController.nextPage(
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
-                        );
-                      }
-                    },
-                  ),
+                  child: _currentPage < _steps.length
+                      ? IconButton(
+                          icon: const Icon(
+                            Icons.arrow_forward_ios,
+                            color: Colors.white70,
+                          ),
+                          onPressed: () {
+                            if (_currentPage < _steps.length) {
+                              _pageController.nextPage(
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeInOut,
+                              );
+                            }
+                          },
+                        )
+                      : IconButton(
+                          icon: const Icon(
+                            Icons.add,
+                            color: Colors.white70,
+                          ),
+                          onPressed: () {
+                            _addStep();
+                          },
+                        ),
                 ),
               ),
             // Cancel/Edit button
