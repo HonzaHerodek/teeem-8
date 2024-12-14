@@ -63,13 +63,18 @@ class _FilterMenuState extends State<FilterMenu>
   }
 
   void _handleFilterSelected(FilterType type, VoidCallback onFilter) {
+    // Close the radial menu
     setState(() {
+      _isOpen = false;
       _activeFilterType = type;
       _isSearchVisible = true;
     });
-    onFilter();
-    // Dispatch FeedSearchChanged with an empty query
-    context.read<FeedBloc>().add(const FeedSearchChanged(''));
+    _controller.reverse().then((_) {
+      // After menu closes, show search bar
+      onFilter();
+      // Clear any existing search
+      context.read<FeedBloc>().add(const FeedSearchChanged(''));
+    });
   }
 
   void _handleSearchClose() {
@@ -77,6 +82,8 @@ class _FilterMenuState extends State<FilterMenu>
       _activeFilterType = null;
       _isSearchVisible = false;
     });
+    // Reset search when closing
+    context.read<FeedBloc>().add(const FeedSearchChanged(''));
   }
 
   Widget _buildMenuItem(FilterMenuItem item, int index, int totalItems) {
@@ -100,8 +107,10 @@ class _FilterMenuState extends State<FilterMenu>
             child: Opacity(
               opacity: progress,
               child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.pink,
+                decoration: BoxDecoration(
+                  color: _activeFilterType == item.filterType
+                      ? Colors.pink
+                      : Colors.pink.withOpacity(0.5),
                   shape: BoxShape.circle,
                 ),
                 child: IconButton(
@@ -130,40 +139,50 @@ class _FilterMenuState extends State<FilterMenu>
           _handleFilterSelected(FilterType.self, widget.onSelfFilter),
     );
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        if (_isSearchVisible && _activeFilterType != null)
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(right: 16.0),
-              child: FilterSearchBar(
-                filterType: _activeFilterType!,
-                onSearch: (query) {
-                  context.read<FeedBloc>().add(FeedSearchChanged(query));
-                },
-                onClose: _handleSearchClose,
+    return Container(
+      constraints: const BoxConstraints(minHeight: 48),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          if (_isSearchVisible && _activeFilterType != null)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: FilterSearchBar(
+                  key: ValueKey(_activeFilterType),
+                  filterType: _activeFilterType!,
+                  onSearch: (query) {
+                    context.read<FeedBloc>().add(FeedSearchChanged(query));
+                  },
+                  onClose: _handleSearchClose,
+                ),
               ),
+            )
+          else
+            const Spacer(),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _isSearchVisible ? Colors.pink : Colors.transparent,
             ),
-          ),
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            ...filterItems.asMap().entries.map((entry) => _buildMenuItem(
-                  entry.value,
-                  entry.key,
-                  filterItems.length,
-                )),
-            IconButton(
+            child: IconButton(
               icon: Icon(
                 _isOpen ? Icons.close : Icons.filter_list,
                 color: Colors.white,
               ),
               onPressed: _toggleMenu,
             ),
-          ],
-        ),
-      ],
+          ),
+          const SizedBox(width: 8),
+          ...filterItems.asMap().entries.map((entry) => _buildMenuItem(
+                entry.value,
+                entry.key,
+                filterItems.length,
+              )),
+        ],
+      ),
     );
   }
 }

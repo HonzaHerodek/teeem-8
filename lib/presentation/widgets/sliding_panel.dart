@@ -5,13 +5,15 @@ class SlidingPanel extends StatefulWidget {
   final bool isOpen;
   final VoidCallback? onClose;
   final double width;
+  final List<Rect>? excludeFromOverlay;
 
   const SlidingPanel({
     super.key,
     required this.child,
     required this.isOpen,
     this.onClose,
-    this.width = 0.75, // 75% of screen width by default
+    this.width = 0.75,
+    this.excludeFromOverlay,
   });
 
   @override
@@ -22,6 +24,8 @@ class _SlidingPanelState extends State<SlidingPanel>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<Offset> _offsetAnimation;
+  double _dragStartX = 0;
+  bool _isDragging = false;
 
   @override
   void initState() {
@@ -38,6 +42,10 @@ class _SlidingPanelState extends State<SlidingPanel>
       parent: _controller,
       curve: Curves.easeInOut,
     ));
+
+    if (widget.isOpen) {
+      _controller.value = 1.0;
+    }
   }
 
   @override
@@ -52,6 +60,46 @@ class _SlidingPanelState extends State<SlidingPanel>
     }
   }
 
+  void _handleDragStart(DragStartDetails details) {
+    _isDragging = true;
+    _dragStartX = details.localPosition.dx;
+  }
+
+  void _handleDragUpdate(DragUpdateDetails details) {
+    if (!_isDragging) return;
+    
+    final dragDistance = details.localPosition.dx - _dragStartX;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final normalizedDrag = dragDistance / screenWidth;
+    
+    if (normalizedDrag < 0) {
+      _controller.value = 1.0 + normalizedDrag;
+    }
+  }
+
+  void _handleDragEnd(DragEndDetails details) {
+    if (!_isDragging) return;
+    _isDragging = false;
+
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity < -500 || _controller.value < 0.5) {
+      widget.onClose?.call();
+    } else {
+      _controller.forward();
+    }
+  }
+
+  bool _shouldHandleTap(Offset position) {
+    if (widget.excludeFromOverlay == null) return true;
+    
+    for (final excludedArea in widget.excludeFromOverlay!) {
+      if (excludedArea.contains(position)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -60,41 +108,64 @@ class _SlidingPanelState extends State<SlidingPanel>
 
   @override
   Widget build(BuildContext context) {
+    final panelWidth = MediaQuery.of(context).size.width * widget.width;
+    const cornerRadius = 50.0;
+
     return Stack(
       children: [
-        // Semi-transparent overlay
-        if (widget.isOpen)
-          GestureDetector(
-            onTap: widget.onClose,
-            child: AnimatedOpacity(
-              opacity: widget.isOpen ? 0.5 : 0.0,
-              duration: const Duration(milliseconds: 300),
-              child: Container(
-                color: Colors.black,
-              ),
-            ),
-          ),
+        // Semi-transparent overlay with animation
+        AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            // Only show overlay when animation is in progress or panel is open
+            if (_controller.value > 0) {
+              return Positioned.fill(
+                child: IgnorePointer(
+                  ignoring: !widget.isOpen,
+                  child: GestureDetector(
+                    onTapDown: (details) {
+                      if (_shouldHandleTap(details.localPosition)) {
+                        widget.onClose?.call();
+                      }
+                    },
+                    child: Container(
+                      color: Colors.black
+                          .withOpacity(0.14 * _controller.value),
+                    ),
+                  ),
+                ),
+              );
+            }
+            return const SizedBox.shrink();
+          },
+        ),
         // Sliding panel
         SlideTransition(
           position: _offsetAnimation,
           child: Align(
             alignment: Alignment.centerLeft,
-            child: Material(
-              elevation: 16,
-              child: Container(
-                width: MediaQuery.of(context).size.width * widget.width,
-                height: double.infinity,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 10,
-                      offset: const Offset(0, 0),
-                    ),
-                  ],
+            child: GestureDetector(
+              onHorizontalDragStart: widget.isOpen ? _handleDragStart : null,
+              onHorizontalDragUpdate: widget.isOpen ? _handleDragUpdate : null,
+              onHorizontalDragEnd: widget.isOpen ? _handleDragEnd : null,
+              child: Material(
+                elevation: 16,
+                color: Colors.transparent,
+                borderRadius: const BorderRadius.only(
+                  topRight: Radius.circular(cornerRadius),
+                  bottomRight: Radius.circular(cornerRadius),
                 ),
-                child: widget.child,
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topRight: Radius.circular(cornerRadius),
+                    bottomRight: Radius.circular(cornerRadius),
+                  ),
+                  child: Container(
+                    width: panelWidth,
+                    height: double.infinity,
+                    child: widget.child,
+                  ),
+                ),
               ),
             ),
           ),

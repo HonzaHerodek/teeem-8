@@ -17,30 +17,37 @@ class CircularActionButton extends StatelessWidget {
     const double buttonSize = 56.0;
     const double strokeWidth = 2.0;
 
-    return Container(
-      width: buttonSize,
-      height: buttonSize,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: Colors.white,
-          width: strokeWidth,
-        ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onPressed,
-          child: Icon(
-            icon,
-            color: Colors.white,
-            size: isBold ? 32.0 : 24.0,
-            weight: isBold ? 700 : 400,
+    return Stack(
+      children: [
+        Container(
+          width: buttonSize,
+          height: buttonSize,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Colors.white,
+              width: strokeWidth,
+            ),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onPressed,
+              child: Center(
+                child: Icon(
+                  icon,
+                  key: ValueKey('action_button_icon_$icon'),
+                  color: Colors.white,
+                  size: isBold ? 32.0 : 24.0,
+                  weight: isBold ? 700 : 400,
+                ),
+              ),
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 }

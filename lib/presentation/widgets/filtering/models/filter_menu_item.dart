@@ -2,16 +2,17 @@ import 'package:flutter/material.dart';
 import 'filter_type.dart';
 
 class FilterMenuItem {
-  final FilterType type;
+  final String tooltip;
+  final IconData icon;
+  final FilterType filterType;
   final VoidCallback onPressed;
 
-  const FilterMenuItem({
-    required this.type,
+  FilterMenuItem({
+    required this.tooltip,
+    required this.icon,
+    required this.filterType,
     required this.onPressed,
   });
-
-  IconData get icon => type.icon;
-  String get tooltip => type.displayName;
 
   static List<FilterMenuItem> defaultItems({
     required VoidCallback onGroupFilter,
@@ -20,15 +21,21 @@ class FilterMenuItem {
   }) {
     return [
       FilterMenuItem(
-        type: FilterType.group,
+        tooltip: 'Group Posts',
+        icon: Icons.groups,
+        filterType: FilterType.group,
         onPressed: onGroupFilter,
       ),
       FilterMenuItem(
-        type: FilterType.pair,
+        tooltip: 'Pair Posts',
+        icon: Icons.people,
+        filterType: FilterType.pair,
         onPressed: onPairFilter,
       ),
       FilterMenuItem(
-        type: FilterType.self,
+        tooltip: 'Individual Posts',
+        icon: Icons.person,
+        filterType: FilterType.self,
         onPressed: onSelfFilter,
       ),
     ];

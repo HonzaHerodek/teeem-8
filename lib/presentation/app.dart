@@ -25,6 +25,7 @@ class App extends StatelessWidget {
       ],
       child: MaterialApp(
         title: 'Flutter Demo',
+        debugShowCheckedModeBanner: false,
         navigatorKey: navigationService.navigatorKey,
         initialRoute: AppRoutes.traitsTest, // Changed for testing
         onGenerateRoute: generateRoute,

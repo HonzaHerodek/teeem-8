@@ -125,6 +125,20 @@ class _FeedViewState extends State<FeedView> {
     context.read<FeedBloc>().add(FeedSearchChanged(query));
   }
 
+  List<Rect> _getExcludedAreas(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    
+    return [
+      Rect.fromLTWH(
+        0, 
+        size.height - bottomPadding - 88,
+        size.width,
+        88 + bottomPadding,
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -137,20 +151,22 @@ class _FeedViewState extends State<FeedView> {
                   height: 64 + MediaQuery.of(context).padding.top,
                   padding: EdgeInsets.only(
                     top: MediaQuery.of(context).padding.top,
-                    left: 16,
                   ),
-                  alignment: Alignment.topLeft,
-                  child: FilterMenu(
-                    onGroupFilter: () {
-                      _applyFilter(FilterType.group);
-                    },
-                    onPairFilter: () {
-                      _applyFilter(FilterType.pair);
-                    },
-                    onSelfFilter: () {
-                      _applyFilter(FilterType.self);
-                    },
-                    onSearch: _handleSearch,
+                  alignment: Alignment.topRight,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: FilterMenu(
+                      onGroupFilter: () {
+                        _applyFilter(FilterType.group);
+                      },
+                      onPairFilter: () {
+                        _applyFilter(FilterType.pair);
+                      },
+                      onSelfFilter: () {
+                        _applyFilter(FilterType.self);
+                      },
+                      onSearch: _handleSearch,
+                    ),
                   ),
                 ),
                 Expanded(
@@ -314,6 +330,7 @@ class _FeedViewState extends State<FeedView> {
           SlidingPanel(
             isOpen: _isProfileOpen,
             onClose: _toggleProfile,
+            excludeFromOverlay: _getExcludedAreas(context),
             child: const ProfileScreen(),
           ),
         ],

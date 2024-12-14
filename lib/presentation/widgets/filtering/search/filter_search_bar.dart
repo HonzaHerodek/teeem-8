@@ -30,16 +30,23 @@ class _FilterSearchBarState extends State<FilterSearchBar> {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+      decoration: BoxDecoration(
+        color: Colors.black45,
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(color: Colors.white24),
+      ),
       child: Row(
         children: [
           Expanded(
             child: TextField(
               controller: _controller,
+              autofocus: true, // Automatically focus when shown
               decoration: InputDecoration(
                 hintText: widget.filterType.searchPlaceholder,
                 hintStyle: const TextStyle(color: Colors.white70),
                 border: InputBorder.none,
                 prefixIcon: const Icon(Icons.search, color: Colors.white),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               ),
               style: const TextStyle(color: Colors.white),
               cursorColor: Colors.white,
@@ -52,6 +59,9 @@ class _FilterSearchBarState extends State<FilterSearchBar> {
               _controller.clear();
               widget.onClose();
             },
+            padding: const EdgeInsets.all(4),
+            constraints: const BoxConstraints(),
+            iconSize: 20,
           ),
         ],
       ),
